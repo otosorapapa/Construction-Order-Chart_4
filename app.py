@@ -236,8 +236,10 @@ THEME_PRESETS = {
         "kpi_card_border": "1px solid rgba(12, 31, 58, 0.18)",
         "kpi_icon_bg": "rgba(255, 255, 255, 0.18)",
         "kpi_icon_color": "#dce7f8",
-        "kpi_title_color": "rgba(255, 255, 255, 0.75)",
-        "kpi_subtitle_color": "rgba(255, 255, 255, 0.7)",
+        "kpi_text_color": "#1f2933",
+        "kpi_value_color": "#111827",
+        "kpi_title_color": "#2f3947",
+        "kpi_subtitle_color": "#3a4654",
         "fiscal_pill_bg": "rgba(30, 76, 156, 0.12)",
         "fiscal_pill_color": BRAND_COLORS["navy"],
         "primary_button_bg": "linear-gradient(145deg, var(--brand-sky), var(--brand-navy))",
@@ -291,6 +293,8 @@ THEME_PRESETS = {
         "kpi_card_border": "1px solid rgba(148, 163, 184, 0.25)",
         "kpi_icon_bg": "rgba(148, 163, 184, 0.2)",
         "kpi_icon_color": "#e2e8f0",
+        "kpi_text_color": "#e2e8f0",
+        "kpi_value_color": "#f8fafc",
         "kpi_title_color": "rgba(226, 232, 240, 0.75)",
         "kpi_subtitle_color": "rgba(226, 232, 240, 0.7)",
         "fiscal_pill_bg": "rgba(77, 126, 168, 0.25)",
@@ -346,6 +350,8 @@ THEME_PRESETS = {
         "kpi_card_border": "1px solid rgba(120, 84, 45, 0.35)",
         "kpi_icon_bg": "rgba(255, 244, 224, 0.2)",
         "kpi_icon_color": "#fdf2d7",
+        "kpi_text_color": "#3f2f1c",
+        "kpi_value_color": "#2f2315",
         "kpi_title_color": "rgba(255, 244, 224, 0.75)",
         "kpi_subtitle_color": "rgba(255, 244, 224, 0.7)",
         "fiscal_pill_bg": "rgba(201, 162, 39, 0.18)",
@@ -2409,6 +2415,10 @@ def apply_brand_theme() -> None:
             --text-muted: {config['text_muted']};
             --text-invert: {config['text_invert']};
             --heading-color: {config['heading_color']};
+            --kpi-text-color: {config.get('kpi_text_color', config['text_invert'])};
+            --kpi-value-color: {config.get('kpi_value_color', config['text_invert'])};
+            --kpi-title-color: {config['kpi_title_color']};
+            --kpi-subtitle-color: {config['kpi_subtitle_color']};
         }}
 
         [data-theme=\"{slug}\"] html,
@@ -2430,7 +2440,7 @@ def apply_brand_theme() -> None:
             background: {config['kpi_card_bg']};
             box-shadow: {config['kpi_card_shadow']};
             border-color: {config['kpi_card_border']};
-            color: {config['text_invert']};
+            color: {config.get('kpi_text_color', config['text_invert'])};
         }}
 
         [data-theme=\"{slug}\"] .kpi-icon {{
@@ -2444,6 +2454,10 @@ def apply_brand_theme() -> None:
 
         [data-theme=\"{slug}\"] .kpi-subtitle {{
             color: {config['kpi_subtitle_color']};
+        }}
+
+        [data-theme=\"{slug}\"] .kpi-value {{
+            color: {config.get('kpi_value_color', config['text_invert'])};
         }}
 
         [data-theme=\"{slug}\"] .fiscal-pill {{
@@ -2577,6 +2591,10 @@ def apply_brand_theme() -> None:
             --text-muted: {default_theme['text_muted']};
             --text-invert: {default_theme['text_invert']};
             --heading-color: {default_theme['heading_color']};
+            --kpi-text-color: {default_theme['kpi_text_color']};
+            --kpi-value-color: {default_theme['kpi_value_color']};
+            --kpi-title-color: {default_theme['kpi_title_color']};
+            --kpi-subtitle-color: {default_theme['kpi_subtitle_color']};
         }}
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="block-container"] {{
@@ -2688,7 +2706,7 @@ def apply_brand_theme() -> None:
             gap: 1rem;
             align-items: center;
             height: 100%;
-            color: var(--text-invert);
+            color: var(--kpi-text-color);
         }}
 
         .kpi-card.alert {{
@@ -2717,7 +2735,7 @@ def apply_brand_theme() -> None:
         .kpi-value {{
             font-size: 1.6rem;
             font-weight: 600;
-            color: var(--text-invert);
+            color: var(--kpi-value-color);
             margin: 0.2rem 0;
         }}
 
