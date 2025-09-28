@@ -2839,6 +2839,17 @@ def apply_brand_theme() -> None:
             --kpi-value-color: {default_theme['kpi_value_color']};
             --kpi-title-color: {default_theme['kpi_title_color']};
             --kpi-subtitle-color: {default_theme['kpi_subtitle_color']};
+            --radio-bg: {default_theme['radio_bg']};
+            --radio-border: {default_theme['radio_border']};
+            --radio-text: {default_theme['radio_text']};
+            --radio-hover-bg: {default_theme['radio_hover_bg']};
+            --radio-hover-border: {default_theme['radio_hover_border']};
+            --radio-hover-color: {default_theme['radio_hover_color']};
+            --radio-hover-shadow: {default_theme['radio_hover_shadow']};
+            --radio-checked-bg: {default_theme['radio_checked_bg']};
+            --radio-checked-border: {default_theme['radio_checked_border']};
+            --radio-checked-color: {default_theme['radio_checked_color']};
+            --radio-checked-shadow: {default_theme['radio_checked_shadow']};
         }}
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="block-container"] {{
