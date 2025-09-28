@@ -2809,7 +2809,17 @@ def apply_brand_theme() -> None:
     st.markdown(
         f"""
         <script>
-        const targetDoc = window.parent?.document || document;
+        let targetDoc = document;
+        try {{
+            if (window.parent && window.parent !== window) {{
+                const parentDoc = window.parent.document;
+                if (parentDoc) {{
+                    targetDoc = parentDoc;
+                }}
+            }}
+        }} catch (error) {{
+            targetDoc = document;
+        }}
         if (targetDoc?.documentElement) {{
             targetDoc.documentElement.setAttribute('data-theme', '{active_theme['slug']}');
         }}
