@@ -557,17 +557,26 @@ def format_risk_badge(level: str) -> str:
     return build_badge(level, icon, tone)
 
 
+def rerun_app() -> None:
+    """Trigger a Streamlit rerun compatible with multiple Streamlit versions."""
+
+    if hasattr(st, "rerun"):
+        st.rerun()
+    else:  # pragma: no cover - legacy fallback
+        st.experimental_rerun()
+
+
 def switch_main_tab(tab_label: str) -> None:
     """Programmatically switch the main content tab."""
     st.session_state["main_tabs"] = tab_label
-    st.experimental_rerun()
+    rerun_app()
 
 
 def trigger_new_project_modal() -> None:
     """Open the project creation modal and jump to the project list tab."""
     st.session_state["show_project_modal"] = True
     st.session_state["main_tabs"] = "案件一覧"
-    st.experimental_rerun()
+    rerun_app()
 
 
 def ensure_data_files() -> None:
@@ -1059,7 +1068,7 @@ def render_scenario_tab() -> None:
                         scenario_frames[name] = updated_df
                         save_scenarios(scenario_frames)
                         st.success("シナリオを更新しました。")
-                        st.experimental_rerun()
+                        rerun_app()
 
             if not df.empty and "ValueChain" in df.columns:
                 chain_summary = (
@@ -3366,7 +3375,7 @@ def render_quick_project_form(df: pd.DataFrame, masters: Dict[str, List[str]]) -
     st.session_state["quick_field_dependency"] = dependency_options[0]
     st.session_state["quick_field_start"] = finish_date
     st.session_state["quick_field_duration"] = 10
-    st.experimental_rerun()
+    rerun_app()
 
 
 def prepare_export(df: Optional[pd.DataFrame], file_format: str = "CSV"):
@@ -3573,7 +3582,7 @@ def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, master
 
                 if cancel_modal:
                     st.session_state["show_project_modal"] = False
-                    st.experimental_rerun()
+                    rerun_app()
 
                 if save_new:
                     errors: List[str] = []
@@ -3603,7 +3612,7 @@ def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, master
                         persist_df = pd.concat([full_df, pd.DataFrame([persist_record])], ignore_index=True)
                         save_projects(persist_df)
                         st.success("新規案件を保存しました。案件一覧を更新します。")
-                        st.experimental_rerun()
+                        rerun_app()
 
     display_df = enrich_projects(filtered_df) if not filtered_df.empty else filtered_df.copy()
     for col in PROJECT_DATE_COLUMNS:
@@ -3751,7 +3760,7 @@ def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, master
     save_clicked = action_cols[0].button("変更を保存", type="primary")
     cancel_clicked = action_cols[1].button("キャンセル", help="最後に保存した状態に戻します。")
     if cancel_clicked:
-        st.experimental_rerun()
+        rerun_app()
 
     if save_clicked:
         try:
@@ -4289,7 +4298,7 @@ def render_settings_tab(masters: Dict[str, List[str]]) -> None:
 
                     if cancel_modal:
                         st.session_state[modal_flag] = False
-                        st.experimental_rerun()
+                        rerun_app()
 
                     if submit_new:
                         errors: List[str] = []
@@ -4307,7 +4316,7 @@ def render_settings_tab(masters: Dict[str, List[str]]) -> None:
                             st.session_state.pop(draft_key, None)
                             st.session_state[modal_flag] = False
                             st.success(f"{label}を追加しました。設定保存で反映されます。")
-                            st.experimental_rerun()
+                            rerun_app()
 
         editor = st.data_editor(
             base_df,
