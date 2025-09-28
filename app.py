@@ -7,6 +7,7 @@ from datetime import date, datetime
 from io import BytesIO
 from typing import Dict, List, Optional, Set, Tuple, Union
 
+import altair as alt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -951,6 +952,23 @@ def render_scenario_tab() -> None:
         st.info("比較できるシナリオがありません。`data/scenarios.json` にシナリオを登録してください。")
         return
 
+    all_start_dates: List[pd.Timestamp] = []
+    all_end_dates: List[pd.Timestamp] = []
+    for frame in scenarios.values():
+        if not isinstance(frame, pd.DataFrame):
+            continue
+        start_series = pd.to_datetime(frame.get("Start"), errors="coerce")
+        finish_series = pd.to_datetime(frame.get("Finish"), errors="coerce")
+        if not start_series.dropna().empty:
+            all_start_dates.append(start_series.min())
+        if not finish_series.dropna().empty:
+            all_end_dates.append(finish_series.max())
+
+    global_start = min(all_start_dates) if all_start_dates else None
+    global_end = max(all_end_dates) if all_end_dates else None
+    if global_start is not None and global_end is not None and global_start == global_end:
+        global_end = global_end + pd.Timedelta(days=1)
+
     summary_records: List[Dict[str, Union[str, float, int]]] = []
     for name, df in scenarios.items():
         metrics = calculate_scenario_metrics(df)
@@ -1069,6 +1087,65 @@ def render_scenario_tab() -> None:
                         save_scenarios(scenario_frames)
                         st.success("シナリオを更新しました。")
                         rerun_app()
+
+            if not df.empty and {"Task", "Start", "Finish"}.issubset(df.columns):
+                chart_df = df.copy()
+                chart_df["start_date"] = pd.to_datetime(chart_df["Start"], errors="coerce")
+                chart_df["end_date"] = pd.to_datetime(chart_df["Finish"], errors="coerce")
+                chart_df = chart_df.dropna(subset=["start_date", "end_date"])
+                chart_df = chart_df.loc[chart_df["end_date"] >= chart_df["start_date"]]
+
+                if not chart_df.empty and global_start is not None and global_end is not None:
+                    chart_df = chart_df.assign(Task=chart_df["Task"].astype(str))
+                    color_field: Optional[str] = None
+                    legend_title = ""
+                    if "ValueChain" in chart_df.columns:
+                        color_field = "ValueChain"
+                        legend_title = "バリューチェーン"
+                    elif "Department" in chart_df.columns:
+                        color_field = "Department"
+                        legend_title = "担当部署"
+                    elif "Resource" in chart_df.columns:
+                        color_field = "Resource"
+                        legend_title = "リソース"
+
+                    sort_order = list(
+                        chart_df.sort_values("start_date")["Task"].astype(str).unique()
+                    )
+
+                    x_scale = alt.Scale(
+                        domain=[global_start.to_pydatetime(), global_end.to_pydatetime()],
+                        nice=False,
+                        padding=0,
+                    )
+
+                    chart = (
+                        alt.Chart(chart_df)
+                        .mark_bar(cornerRadius=4)
+                        .encode(
+                            y=alt.Y("Task:N", sort=sort_order, title="タスク"),
+                            x=alt.X(
+                                "start_date:T",
+                                title="開始日",
+                                scale=x_scale,
+                            ),
+                            x2=alt.X2("end_date:T"),
+                            tooltip=[
+                                alt.Tooltip("Task:N", title="タスク"),
+                                alt.Tooltip("start_date:T", title="開始日"),
+                                alt.Tooltip("end_date:T", title="終了日"),
+                            ],
+                            color=(
+                                alt.Color(f"{color_field}:N", title=legend_title)
+                                if color_field
+                                else alt.value(BRAND_COLORS["navy"])
+                            ),
+                        )
+                        .properties(height=max(240, 36 * len(sort_order)))
+                        .configure_axis(labelFontSize=12, titleFontSize=12)
+                    )
+
+                    st.altair_chart(chart, use_container_width=True)
 
             if not df.empty and "ValueChain" in df.columns:
                 chain_summary = (
