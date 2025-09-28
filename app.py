@@ -418,9 +418,16 @@ QUICK_TASK_TEMPLATES = {
 
 
 def get_active_theme_name() -> str:
-    theme_name = st.session_state.get("color_theme", "ライト")
+    """Return the currently selected theme name with session state synchronisation."""
+
+    widget_theme = st.session_state.get("color_theme_select")
+    if widget_theme in THEME_PRESETS:
+        st.session_state["color_theme"] = widget_theme
+
+    theme_name = st.session_state.get("color_theme")
     if theme_name not in THEME_PRESETS:
         theme_name = "ライト"
+        st.session_state["color_theme"] = theme_name
     return theme_name
 
 
@@ -2401,24 +2408,86 @@ def apply_brand_theme() -> None:
     active_theme = THEME_PRESETS[theme_name]
     default_theme = THEME_PRESETS["ライト"]
 
+    css_variable_map = {
+        "--surface-bg": "surface_bg",
+        "--surface-panel": "surface_panel",
+        "--surface-card": "surface_card",
+        "--surface-outline": "surface_outline",
+        "--text-strong": "text_strong",
+        "--text-muted": "text_muted",
+        "--text-invert": "text_invert",
+        "--heading-color": "heading_color",
+        "--kpi-card-bg": "kpi_card_bg",
+        "--kpi-card-shadow": "kpi_card_shadow",
+        "--kpi-card-border": "kpi_card_border",
+        "--kpi-icon-bg": "kpi_icon_bg",
+        "--kpi-icon-color": "kpi_icon_color",
+        "--kpi-text-color": "kpi_text_color",
+        "--kpi-title-color": "kpi_title_color",
+        "--kpi-value-color": "kpi_value_color",
+        "--kpi-subtitle-color": "kpi_subtitle_color",
+        "--fiscal-pill-bg": "fiscal_pill_bg",
+        "--fiscal-pill-color": "fiscal_pill_color",
+        "--panel-bg": "panel_bg",
+        "--panel-shadow": "panel_shadow",
+        "--panel-border": "panel_border",
+        "--quick_action_bg": "quick_action_bg",
+        "--quick_action_color": "quick_action_color",
+        "--quick_action_border": "quick_action_border",
+        "--quick_action_hover_shadow": "quick_action_hover_shadow",
+        "--radio-bg": "radio_bg",
+        "--radio-border": "radio_border",
+        "--radio-text": "radio_text",
+        "--radio-hover-bg": "radio_hover_bg",
+        "--radio-hover-border": "radio_hover_border",
+        "--radio-hover-color": "radio_hover_color",
+        "--radio-hover-shadow": "radio_hover_shadow",
+        "--radio-checked-bg": "radio_checked_bg",
+        "--radio-checked-border": "radio_checked_border",
+        "--radio-checked-color": "radio_checked_color",
+        "--radio-checked-shadow": "radio_checked_shadow",
+        "--table-header-bg": "table_header_bg",
+        "--table-header-color": "table_header_color",
+        "--table-stripe-odd": "table_stripe_odd",
+        "--table-stripe-even": "table_stripe_even",
+        "--table-hover": "table_hover",
+        "--input-bg": "input_bg",
+        "--input-border": "input_border",
+        "--input-shadow": "input_shadow",
+        "--primary-button-bg": "primary_button_bg",
+        "--primary-button-hover": "primary_button_hover",
+        "--primary-button-color": "primary_button_color",
+        "--primary-button-shadow": "primary_button_shadow",
+        "--primary-button-hover-shadow": "primary_button_hover_shadow",
+        "--legend-bg": "legend_bg",
+        "--chart-paper": "chart_paper",
+        "--chart-plot": "chart_plot",
+        "--chart-grid": "chart_grid",
+    }
+
     theme_overrides: List[str] = []
     for config in THEME_PRESETS.values():
         slug = config["slug"]
+        var_lines: List[str] = []
+        for css_var, config_key in css_variable_map.items():
+            value = config.get(config_key)
+            if value in (None, ""):
+                fallback_key = {
+                    "kpi_text_color": "text_invert",
+                    "kpi_value_color": "text_invert",
+                }.get(config_key)
+                if fallback_key:
+                    value = config.get(fallback_key)
+            if value in (None, ""):
+                value = default_theme.get(config_key)
+            if value in (None, ""):
+                continue
+            var_lines.append(f"{css_var}: {value};")
+        css_var_block = "\n            ".join(var_lines)
         theme_overrides.append(
             f"""
         :root[data-theme=\"{slug}\"] {{
-            --surface-bg: {config['surface_bg']};
-            --surface-panel: {config['surface_panel']};
-            --surface-card: {config['surface_card']};
-            --surface-outline: {config['surface_outline']};
-            --text-strong: {config['text_strong']};
-            --text-muted: {config['text_muted']};
-            --text-invert: {config['text_invert']};
-            --heading-color: {config['heading_color']};
-            --kpi-text-color: {config.get('kpi_text_color', config['text_invert'])};
-            --kpi-value-color: {config.get('kpi_value_color', config['text_invert'])};
-            --kpi-title-color: {config['kpi_title_color']};
-            --kpi-subtitle-color: {config['kpi_subtitle_color']};
+            {css_var_block}
         }}
 
         [data-theme=\"{slug}\"] html,
