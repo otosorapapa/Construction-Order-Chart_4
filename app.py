@@ -2016,9 +2016,10 @@ def create_schedule_chart(
         if pd.isna(planned_start_dt) or pd.isna(planned_end_dt):
             continue
 
-        duration_days = (planned_end_dt - planned_start_dt).days + 1
-        if duration_days <= 0:
+        planned_duration_delta = (planned_end_dt - planned_start_dt) + pd.Timedelta(days=1)
+        if planned_duration_delta <= pd.Timedelta(0):
             continue
+        planned_duration_ms = planned_duration_delta.total_seconds() * 1000
 
         project_name = row.get("案件名", "-")
         project_labels.add(str(project_name))
@@ -2031,7 +2032,7 @@ def create_schedule_chart(
 
         fig.add_trace(
             go.Bar(
-                x=[duration_days],
+                x=[planned_duration_ms],
                 y=[project_name],
                 base=planned_start_dt,
                 orientation="h",
@@ -2048,12 +2049,13 @@ def create_schedule_chart(
         actual_start_dt = pd.to_datetime(row.get("実際着工日"), errors="coerce")
         actual_end_dt = pd.to_datetime(row.get("実際竣工日"), errors="coerce")
         if not pd.isna(actual_start_dt) and not pd.isna(actual_end_dt):
-            actual_duration = (actual_end_dt - actual_start_dt).days + 1
-            if actual_duration > 0:
+            actual_duration_delta = (actual_end_dt - actual_start_dt) + pd.Timedelta(days=1)
+            if actual_duration_delta > pd.Timedelta(0):
+                actual_duration_ms = actual_duration_delta.total_seconds() * 1000
                 project_labels.add(str(project_name))
                 fig.add_trace(
                     go.Bar(
-                        x=[actual_duration],
+                        x=[actual_duration_ms],
                         y=[project_name],
                         base=actual_start_dt,
                         orientation="h",
