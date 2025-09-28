@@ -2037,24 +2037,36 @@ def create_schedule_chart(
         planned_duration_ms = planned_duration_delta.total_seconds() * 1000
 
         project_name = row.get("案件名", "-")
-        project_labels.add(str(project_name))
+        client_name = row.get("発注元") or row.get("得意先") or "-"
+        display_label = f"{project_name}｜発注元: {client_name}"
+        project_labels.add(str(display_label))
+        notes = " / ".join(v for v in [row.get("備考"), row.get("リスクメモ")] if v)
+        notes_display = notes if notes else None
         hover_text = (
             f"現場名: {project_name}<br>"
+            f"発注元: {client_name}<br>"
             f"予定期間: {format_date(planned_start_dt)}〜{format_date(planned_end_dt)}<br>"
             f"担当者: {row.get('担当者', '-') or '-'}<br>"
-            f"協力会社: {row.get('協力会社', '-') or '-'}"
+            f"協力会社: {row.get('協力会社', '-') or '-'}<br>"
+            f"備考: {notes or '-'}"
         )
 
         fig.add_trace(
             go.Bar(
                 x=[planned_duration_ms],
-                y=[project_name],
+                y=[display_label],
                 base=planned_start_dt,
                 orientation="h",
                 marker=dict(
                     color=bar_color,
                     line=dict(color="rgba(12,31,58,0.3)", width=1),
                 ),
+                text=[notes_display] if notes_display else None,
+                texttemplate="%{text}" if notes_display else None,
+                textposition="inside",
+                textfont=dict(color=get_contrasting_text_color(bar_color)),
+                insidetextanchor="start",
+                textangle=0,
                 hovertemplate=hover_text + "<extra></extra>",
                 name="予定",
                 showlegend=False,
@@ -2067,11 +2079,11 @@ def create_schedule_chart(
             actual_duration_delta = (actual_end_dt - actual_start_dt) + pd.Timedelta(days=1)
             if actual_duration_delta > pd.Timedelta(0):
                 actual_duration_ms = actual_duration_delta.total_seconds() * 1000
-                project_labels.add(str(project_name))
+                project_labels.add(str(display_label))
                 fig.add_trace(
                     go.Bar(
                         x=[actual_duration_ms],
-                        y=[project_name],
+                        y=[display_label],
                         base=actual_start_dt,
                         orientation="h",
                         marker=dict(
@@ -2213,7 +2225,7 @@ def create_schedule_chart(
         ),
         yaxis=dict(
             autorange="reversed",
-            title=dict(text="現場名", font=dict(color=theme["text_strong"])),
+            title=dict(text="案件 / 発注元", font=dict(color=theme["text_strong"])),
             tickfont=dict(color=theme["text_strong"], size=12),
             gridcolor="rgba(0,0,0,0)",
             tickmode="linear",
