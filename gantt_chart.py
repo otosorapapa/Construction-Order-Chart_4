@@ -218,6 +218,8 @@ def create_project_gantt_chart(df: pd.DataFrame) -> go.Figure:
             ticktext=list(axis_marks.tick_labels),
             showgrid=False,
             title="日付",
+            tickangle=-45,
+            automargin=True,
         ),
         xaxis2=dict(
             matches="x",
@@ -232,7 +234,7 @@ def create_project_gantt_chart(df: pd.DataFrame) -> go.Figure:
         ),
         yaxis=dict(autorange="reversed", title="案件名"),
         legend=dict(title="案件名"),
-        margin=dict(t=110, b=40, l=80, r=20),
+        margin=dict(t=110, b=80, l=80, r=20),
     )
 
     for mark in axis_marks.major_marks:
