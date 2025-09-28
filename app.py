@@ -805,6 +805,14 @@ def load_projects() -> pd.DataFrame:
         df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
     for col in PROJECT_NUMERIC_COLUMNS:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+    text_columns = [
+        col
+        for col in PROJECT_BASE_COLUMNS
+        if col not in PROJECT_DATE_COLUMNS + PROJECT_NUMERIC_COLUMNS
+    ]
+    for col in text_columns:
+        if col in df.columns:
+            df[col] = df[col].fillna("").astype(str)
     missing_cols = [c for c in PROJECT_BASE_COLUMNS if c not in df.columns]
     if missing_cols:
         df = df.reindex(columns=list(df.columns) + missing_cols)
@@ -3511,6 +3519,9 @@ def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, master
                         st.experimental_rerun()
 
     display_df = enrich_projects(filtered_df) if not filtered_df.empty else filtered_df.copy()
+    for col in PROJECT_DATE_COLUMNS:
+        if col in display_df.columns:
+            display_df.loc[:, col] = pd.to_datetime(display_df[col], errors="coerce")
     if display_df.empty:
         st.info("条件に合致する案件がありません。フィルタを変更するか、新規行を追加してください。")
     display_df.reset_index(drop=True, inplace=True)
