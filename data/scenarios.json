@@ -1,0 +1,140 @@
+{
+  "現行計画": [
+    {
+      "Task": "基礎工事",
+      "Start": "2025-10-01",
+      "Finish": "2025-10-10",
+      "Resource": "基礎",
+      "Department": "土木部",
+      "ValueChain": "施工",
+      "Progress": 20,
+      "CostBudget": 10000000,
+      "CostActual": 8000000,
+      "RiskLevel": "中"
+    },
+    {
+      "Task": "躯体工事",
+      "Start": "2025-10-11",
+      "Finish": "2025-11-05",
+      "Resource": "躯体",
+      "Department": "施工管理部",
+      "ValueChain": "施工",
+      "Progress": 0,
+      "CostBudget": 30000000,
+      "CostActual": 0,
+      "RiskLevel": "中"
+    },
+    {
+      "Task": "検査・引渡し準備",
+      "Start": "2025-11-06",
+      "Finish": "2025-11-15",
+      "Resource": "検査",
+      "Department": "品質保証部",
+      "ValueChain": "検査",
+      "Progress": 0,
+      "CostBudget": 5000000,
+      "CostActual": 0,
+      "RiskLevel": "低"
+    }
+  ],
+  "短縮案": [
+    {
+      "Task": "基礎工事",
+      "Start": "2025-09-28",
+      "Finish": "2025-10-07",
+      "Resource": "基礎",
+      "Department": "土木部",
+      "ValueChain": "施工",
+      "Progress": 30,
+      "CostBudget": 10500000,
+      "CostActual": 8400000,
+      "RiskLevel": "中"
+    },
+    {
+      "Task": "躯体工事",
+      "Start": "2025-10-08",
+      "Finish": "2025-10-30",
+      "Resource": "躯体",
+      "Department": "施工管理部",
+      "ValueChain": "施工",
+      "Progress": 10,
+      "CostBudget": 31500000,
+      "CostActual": 2000000,
+      "RiskLevel": "高"
+    },
+    {
+      "Task": "内装仕上げ",
+      "Start": "2025-10-31",
+      "Finish": "2025-11-18",
+      "Resource": "内装",
+      "Department": "仕上管理部",
+      "ValueChain": "施工",
+      "Progress": 0,
+      "CostBudget": 8000000,
+      "CostActual": 0,
+      "RiskLevel": "中"
+    },
+    {
+      "Task": "検査・引渡し",
+      "Start": "2025-11-19",
+      "Finish": "2025-11-27",
+      "Resource": "検査",
+      "Department": "品質保証部",
+      "ValueChain": "検査",
+      "Progress": 0,
+      "CostBudget": 4500000,
+      "CostActual": 0,
+      "RiskLevel": "低"
+    }
+  ],
+  "延長案": [
+    {
+      "Task": "基礎工事",
+      "Start": "2025-10-05",
+      "Finish": "2025-10-20",
+      "Resource": "基礎",
+      "Department": "土木部",
+      "ValueChain": "施工",
+      "Progress": 10,
+      "CostBudget": 9500000,
+      "CostActual": 8200000,
+      "RiskLevel": "低"
+    },
+    {
+      "Task": "躯体工事",
+      "Start": "2025-10-21",
+      "Finish": "2025-11-25",
+      "Resource": "躯体",
+      "Department": "施工管理部",
+      "ValueChain": "施工",
+      "Progress": 0,
+      "CostBudget": 28500000,
+      "CostActual": 0,
+      "RiskLevel": "中"
+    },
+    {
+      "Task": "外構・仕上げ",
+      "Start": "2025-11-26",
+      "Finish": "2025-12-20",
+      "Resource": "外構",
+      "Department": "仕上管理部",
+      "ValueChain": "施工",
+      "Progress": 0,
+      "CostBudget": 9000000,
+      "CostActual": 0,
+      "RiskLevel": "中"
+    },
+    {
+      "Task": "検査・引渡し",
+      "Start": "2025-12-21",
+      "Finish": "2025-12-30",
+      "Resource": "検査",
+      "Department": "品質保証部",
+      "ValueChain": "引き渡し",
+      "Progress": 0,
+      "CostBudget": 5000000,
+      "CostActual": 0,
+      "RiskLevel": "低"
+    }
+  ]
+}
