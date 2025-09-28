@@ -256,7 +256,7 @@ THEME_PRESETS = {
         "quick_action_hover_shadow": "0 14px 28px rgba(30, 76, 156, 0.18)",
         "radio_bg": "rgba(255, 255, 255, 0.92)",
         "radio_border": "1px solid rgba(30, 76, 156, 0.22)",
-        "radio_text": "var(--text-strong)",
+        "radio_text": "#1f2937",
         "radio_hover_bg": "rgba(77, 126, 168, 0.16)",
         "radio_hover_border": "rgba(77, 126, 168, 0.38)",
         "radio_hover_color": "var(--brand-navy)",
