@@ -15,7 +15,6 @@ import plotly.graph_objects as go
 import streamlit as st
 from dateutil.relativedelta import relativedelta
 
-from gantt_chart import create_project_gantt_chart
 
 DATA_DIR = "data"
 PROJECT_CSV = os.path.join(DATA_DIR, "projects.csv")
@@ -4595,26 +4594,6 @@ def main() -> None:
         st.subheader("タイムライン")
         timeline_fig = create_timeline(enriched_filtered_df, filters, fiscal_range)
         st.plotly_chart(timeline_fig, use_container_width=True)
-
-        st.markdown("### 案件ガントチャート")
-        if enriched_filtered_df.empty:
-            st.info("表示できる案件がありません。フィルタ条件を見直してください。")
-        else:
-            gantt_source = (
-                enriched_filtered_df[["案件名", "着工日", "竣工日"]]
-                .rename(columns={"着工日": "開始日", "竣工日": "終了日"})
-                .copy()
-            )
-            try:
-                gantt_fig = create_project_gantt_chart(gantt_source)
-            except ValueError as exc:
-                st.warning(f"ガントチャートを生成できませんでした: {exc}")
-            else:
-                gantt_fig.update_layout(
-                    title=dict(text=f"{filters.fiscal_year}年度 案件別ガントチャート")
-                )
-                gantt_fig = apply_plotly_theme(gantt_fig)
-                st.plotly_chart(gantt_fig, use_container_width=True)
 
         st.markdown("### 日程スケジュール")
         schedule_fig = create_schedule_chart(enriched_filtered_df, filters, fiscal_range)
