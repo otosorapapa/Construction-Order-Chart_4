@@ -1,3 +1,4 @@
+import calendar
 import json
 import os
 import re
@@ -5,7 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import altair as alt
 import numpy as np
@@ -1581,15 +1582,38 @@ def style_risk_table(df: pd.DataFrame) -> "pd.io.formats.style.Styler":
 
 # Plotly
 # GEN: start
+@dataclass(frozen=True)
+class TimeAxisMarks:
+    major_marks: Sequence[pd.Timestamp]
+    minor_marks: Sequence[pd.Timestamp]
+    domain_start: pd.Timestamp
+    domain_end: pd.Timestamp
+    major_labels: Sequence[str]
+    minor_labels: Sequence[str]
+    quarter_marks: Sequence[pd.Timestamp]
+    quarter_labels: Sequence[str]
+
+
+def _fiscal_quarter_freq(start_month: int) -> str:
+    end_month = ((start_month + 2 - 1) % 12) + 1
+    month_abbr = calendar.month_abbr[end_month].upper()
+    return f"Q-{month_abbr}"
+
+
+def _calc_fiscal_year(value: pd.Timestamp, start_month: int) -> int:
+    if value.month < start_month:
+        return value.year - 1
+    return value.year
+
+
+def _calc_fiscal_quarter(value: pd.Timestamp, start_month: int) -> int:
+    offset = (value.month - start_month) % 12
+    return offset // 3 + 1
+
+
 def gen_time_marks(
     tasks: pd.DataFrame, fallback_range: Tuple[date, date]
-) -> Tuple[
-    List[pd.Timestamp],
-    List[pd.Timestamp],
-    Tuple[pd.Timestamp, pd.Timestamp],
-    List[str],
-    List[str],
-]:
+) -> TimeAxisMarks:
     fallback_start, fallback_end = fallback_range
     start_ts = pd.Timestamp(fallback_start)
     end_ts = pd.Timestamp(fallback_end)
@@ -1643,7 +1667,29 @@ def gen_time_marks(
     minor_marks = sorted(dedup_minor.keys())
     minor_labels = [dedup_minor[mark] for mark in minor_marks]
 
-    return major_marks, minor_marks, (domain_start, domain_end), major_labels, minor_labels
+    quarter_marks: List[pd.Timestamp] = []
+    quarter_labels: List[str] = []
+    quarter_freq = _fiscal_quarter_freq(FISCAL_START_MONTH)
+    quarter_range = pd.period_range(domain_start, domain_end, freq=quarter_freq)
+    for quarter in quarter_range:
+        q_start = max(quarter.start_time.normalize(), domain_start)
+        q_end = min(quarter.end_time.normalize(), domain_end)
+        midpoint = q_start + (q_end - q_start) / 2
+        quarter_marks.append(pd.Timestamp(midpoint))
+        fiscal_year = _calc_fiscal_year(pd.Timestamp(q_start), FISCAL_START_MONTH)
+        quarter_index = _calc_fiscal_quarter(pd.Timestamp(q_start), FISCAL_START_MONTH)
+        quarter_labels.append(f"{fiscal_year}年度 Q{quarter_index}")
+
+    return TimeAxisMarks(
+        major_marks=major_marks,
+        minor_marks=minor_marks,
+        domain_start=domain_start,
+        domain_end=domain_end,
+        major_labels=major_labels,
+        minor_labels=minor_labels,
+        quarter_marks=quarter_marks,
+        quarter_labels=quarter_labels,
+    )
 
 
 def _combine_tick_vals(
@@ -1849,13 +1895,13 @@ def create_timeline(
                 font=dict(size=16, color=border_color or BRAND_COLORS["slate"]),
             )
 
-    (
-        major_marks,
-        minor_marks,
-        (range_start, range_end),
-        major_labels,
-        minor_labels,
-    ) = gen_time_marks(df, fiscal_range)
+    time_marks = gen_time_marks(df, fiscal_range)
+    major_marks = list(time_marks.major_marks)
+    minor_marks = list(time_marks.minor_marks)
+    range_start = time_marks.domain_start
+    range_end = time_marks.domain_end
+    major_labels = list(time_marks.major_labels)
+    minor_labels = list(time_marks.minor_labels)
     theme = get_active_theme()
 
     range_max = range_end + pd.Timedelta(days=1)
@@ -1950,29 +1996,19 @@ def create_timeline(
 def create_schedule_chart(
     df: pd.DataFrame, filters: FilterState, fiscal_range: Tuple[date, date]
 ) -> go.Figure:
-    if df.empty:
-        fig = go.Figure()
-        fig = apply_brand_layout(
-            fig,
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            height=400,
-            xaxis=dict(
-                title=dict(text="期間", font=dict(color=BRAND_COLORS["slate"])),
-                tickfont=dict(color=BRAND_COLORS["slate"]),
-                gridcolor=BRAND_COLORS["cloud"],
-                linecolor=BRAND_COLORS["cloud"],
-            ),
-            yaxis=dict(
-                title=dict(text="現場名", font=dict(color=BRAND_COLORS["slate"])),
-                tickfont=dict(color=BRAND_COLORS["slate"]),
-                gridcolor="rgba(0,0,0,0)",
-            ),
-        )
-        return apply_plotly_theme(fig)
+    time_marks = gen_time_marks(df, fiscal_range)
+    major_marks = list(time_marks.major_marks)
+    minor_marks = list(time_marks.minor_marks)
+    major_labels = list(time_marks.major_labels)
+    minor_labels = list(time_marks.minor_labels)
+    range_start = time_marks.domain_start
+    range_end = time_marks.domain_end
+    theme = get_active_theme()
+    range_max = range_end + pd.Timedelta(days=1)
 
     fig = go.Figure()
     bar_color = filters.bar_color
+    project_labels: Set[str] = set()
 
     for _, row in df.iterrows():
         planned_start_dt = pd.to_datetime(row.get("着工日"), errors="coerce")
@@ -1985,6 +2021,7 @@ def create_schedule_chart(
             continue
 
         project_name = row.get("案件名", "-")
+        project_labels.add(str(project_name))
         hover_text = (
             f"現場名: {project_name}<br>"
             f"予定期間: {format_date(planned_start_dt)}〜{format_date(planned_end_dt)}<br>"
@@ -2013,6 +2050,7 @@ def create_schedule_chart(
         if not pd.isna(actual_start_dt) and not pd.isna(actual_end_dt):
             actual_duration = (actual_end_dt - actual_start_dt).days + 1
             if actual_duration > 0:
+                project_labels.add(str(project_name))
                 fig.add_trace(
                     go.Bar(
                         x=[actual_duration],
@@ -2033,21 +2071,6 @@ def create_schedule_chart(
                     )
                 )
 
-    project_labels: Set[str] = set()
-    for trace in fig.data:
-        y_vals = getattr(trace, "y", None)
-        if y_vals:
-            project_labels.update(str(val) for val in y_vals)
-
-    (
-        major_marks,
-        minor_marks,
-        (range_start, range_end),
-        major_labels,
-        minor_labels,
-    ) = gen_time_marks(df, fiscal_range)
-    theme = get_active_theme()
-    range_max = range_end + pd.Timedelta(days=1)
     project_count = max(1, len(project_labels))
 
     fig = apply_brand_layout(
@@ -2061,27 +2084,37 @@ def create_schedule_chart(
             text=f"{filters.fiscal_year}年度 日程スケジュール",
             font=dict(color=BRAND_COLORS["slate"]),
         ),
+        margin=dict(t=80, b=40, l=10, r=10, pad=10),
+        showlegend=False,
+    )
+
+    tickvals = _combine_tick_vals(major_marks, minor_marks)
+    ticktext = _combine_tick_labels(major_marks, major_labels, minor_marks, minor_labels)
+    quarter_tickvals = list(time_marks.quarter_marks)
+    quarter_ticktext = list(time_marks.quarter_labels)
+
+    fig.update_layout(
         xaxis=dict(
+            type="date",
             range=[range_start, range_max],
-            showgrid=filters.show_grid,
             tickmode="array",
-            tickvals=_combine_tick_vals(major_marks, minor_marks),
-            ticktext=_combine_tick_labels(
-                major_marks, major_labels, minor_marks, minor_labels
-            ),
-            gridcolor=BRAND_COLORS["cloud"],
-            linecolor=BRAND_COLORS["cloud"],
-            tickfont=dict(color=BRAND_COLORS["slate"]),
-            title=dict(text="期間", font=dict(color=BRAND_COLORS["slate"])),
+            tickvals=tickvals,
+            ticktext=ticktext,
+        ),
+        xaxis2=dict(
+            type="date",
+            matches="x",
+            overlaying="x",
+            side="top",
+            tickmode="array",
+            tickvals=quarter_tickvals,
+            ticktext=quarter_ticktext,
+            showgrid=False,
+            ticks="",
         ),
         yaxis=dict(
             autorange="reversed",
-            title=dict(text="現場名", font=dict(color=BRAND_COLORS["slate"])),
-            tickfont=dict(color=BRAND_COLORS["slate"], size=12),
-            gridcolor="rgba(0,0,0,0)",
         ),
-        margin=dict(t=80, b=40, l=10, r=10, pad=10),
-        showlegend=False,
     )
 
     major_line_color = theme["chart_grid"]
@@ -2132,9 +2165,45 @@ def create_schedule_chart(
             borderpad=4,
         )
 
-    fig.update_yaxes(tickmode="linear", tickfont=dict(color=BRAND_COLORS["slate"]))
-    fig.update_xaxes(tickfont=dict(color=BRAND_COLORS["slate"]))
-    return apply_plotly_theme(fig)
+    fig = apply_plotly_theme(fig)
+
+    fig.update_layout(
+        xaxis=dict(
+            type="date",
+            range=[range_start, range_max],
+            tickmode="array",
+            tickvals=tickvals,
+            ticktext=ticktext,
+            showgrid=filters.show_grid,
+            gridcolor=theme["chart_grid"],
+            linecolor=theme["chart_grid"],
+            tickfont=dict(color=theme["text_strong"]),
+            title=dict(text="期間", font=dict(color=theme["text_strong"])),
+        ),
+        xaxis2=dict(
+            type="date",
+            matches="x",
+            overlaying="x",
+            side="top",
+            tickmode="array",
+            tickvals=quarter_tickvals,
+            ticktext=quarter_ticktext,
+            showgrid=False,
+            ticks="",
+            tickfont=dict(color=theme["text_strong"]),
+            title=dict(text="年度/四半期", font=dict(color=theme["text_strong"])),
+            linecolor=theme["chart_grid"],
+        ),
+        yaxis=dict(
+            autorange="reversed",
+            title=dict(text="現場名", font=dict(color=theme["text_strong"])),
+            tickfont=dict(color=theme["text_strong"], size=12),
+            gridcolor="rgba(0,0,0,0)",
+            tickmode="linear",
+        ),
+    )
+
+    return fig
 
 
 def validate_projects(df: pd.DataFrame) -> Tuple[bool, List[str]]:
