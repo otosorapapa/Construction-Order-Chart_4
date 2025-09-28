@@ -435,7 +435,18 @@ def get_active_theme_name() -> str:
 def get_active_theme() -> Dict[str, str]:
     return THEME_PRESETS[get_active_theme_name()]
 
-DEFAULT_BAR_COLOR = BRAND_COLORS["navy"]
+
+SCHEDULE_BAR_DEFAULT_COLORS = {
+    "light": BRAND_COLORS["navy"],
+    "dark": "#36e4ff",
+    "sepia": "#8b5e2c",
+}
+
+
+def get_schedule_bar_default_color(theme_slug: Optional[str] = None) -> str:
+    if theme_slug is None:
+        theme_slug = get_active_theme().get("slug", "light")
+    return SCHEDULE_BAR_DEFAULT_COLORS.get(theme_slug, BRAND_COLORS["navy"])
 
 
 MODAL_SUPPORTED = hasattr(st, "modal")
@@ -2003,10 +2014,15 @@ def create_schedule_chart(
     range_start = time_marks.domain_start
     range_end = time_marks.domain_end
     theme = get_active_theme()
+    theme_slug = theme.get("slug", "light")
+    default_bar_color = get_schedule_bar_default_color(theme_slug)
     range_max = range_end + pd.Timedelta(days=1)
 
     fig = go.Figure()
-    bar_color = filters.bar_color
+    bar_color = filters.bar_color or default_bar_color
+    legacy_defaults = {BRAND_COLORS["navy"].lower()}
+    if bar_color.lower() in legacy_defaults and bar_color.lower() != default_bar_color.lower():
+        bar_color = default_bar_color
     project_labels: Set[str] = set()
 
     for _, row in df.iterrows():
@@ -2344,6 +2360,9 @@ def render_control_panel(df: pd.DataFrame, masters: Dict[str, List[str]]) -> Fil
             key="color_theme_select",
         )
         st.session_state["color_theme"] = color_theme
+        active_theme_config = THEME_PRESETS[color_theme]
+        theme_slug = active_theme_config["slug"]
+        default_bar_color = get_schedule_bar_default_color(theme_slug)
         color_key = st.selectbox(
             "色分けキー",
             ["ステータス", "工種", "元請区分"],
@@ -2352,9 +2371,9 @@ def render_control_panel(df: pd.DataFrame, masters: Dict[str, List[str]]) -> Fil
         )
         bar_color = st.color_picker(
             "バー基調色",
-            DEFAULT_BAR_COLOR,
+            default_bar_color,
             help="タイムラインのバー色をチームカラーに合わせて変更できます。",
-            key="bar_color_picker",
+            key=f"bar_color_picker_{theme_slug}",
         )
         show_grid = st.checkbox(
             "月グリッド線を表示",
