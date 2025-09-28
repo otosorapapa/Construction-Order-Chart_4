@@ -32,6 +32,8 @@ class _AxisMarks:
     minor_marks: Sequence[pd.Timestamp]
     domain_start: pd.Timestamp
     domain_end: pd.Timestamp
+    quarter_tick_positions: Sequence[pd.Timestamp]
+    quarter_tick_labels: Sequence[str]
 
 
 def _ensure_datetime(series: pd.Series, label: str) -> pd.Series:
@@ -90,6 +92,17 @@ def _build_axis_marks(starts: pd.Series, ends: pd.Series) -> _AxisMarks:
     }
     tick_labels = [label_map.get(position, "") for position in tick_positions]
 
+    quarter_start_period = domain_start.to_period("Q")
+    quarter_end_period = domain_end.to_period("Q")
+    quarter_positions: List[pd.Timestamp] = []
+    quarter_labels: List[str] = []
+    for quarter in pd.period_range(quarter_start_period, quarter_end_period, freq="Q"):
+        q_start = max(quarter.start_time.normalize(), domain_start)
+        q_end = min(quarter.end_time.normalize(), domain_end)
+        midpoint = q_start + (q_end - q_start) / 2
+        quarter_positions.append(pd.Timestamp(midpoint))
+        quarter_labels.append(f"{quarter.year} Q{quarter.quarter}")
+
     return _AxisMarks(
         tick_positions=tick_positions,
         tick_labels=tick_labels,
@@ -97,6 +110,8 @@ def _build_axis_marks(starts: pd.Series, ends: pd.Series) -> _AxisMarks:
         minor_marks=minor_marks,
         domain_start=domain_start,
         domain_end=domain_end,
+        quarter_tick_positions=quarter_positions,
+        quarter_tick_labels=quarter_labels,
     )
 
 
@@ -204,9 +219,20 @@ def create_project_gantt_chart(df: pd.DataFrame) -> go.Figure:
             showgrid=False,
             title="日付",
         ),
+        xaxis2=dict(
+            matches="x",
+            overlaying="x",
+            side="top",
+            tickmode="array",
+            tickvals=list(axis_marks.quarter_tick_positions),
+            ticktext=list(axis_marks.quarter_tick_labels),
+            showgrid=False,
+            ticks="",
+            title="期間",
+        ),
         yaxis=dict(autorange="reversed", title="案件名"),
         legend=dict(title="案件名"),
-        margin=dict(t=80, b=40, l=80, r=20),
+        margin=dict(t=110, b=40, l=80, r=20),
     )
 
     for mark in axis_marks.major_marks:
