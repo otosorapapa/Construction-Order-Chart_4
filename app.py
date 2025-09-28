@@ -2395,158 +2395,30 @@ def apply_brand_theme() -> None:
     active_theme = THEME_PRESETS[theme_name]
     default_theme = THEME_PRESETS["ライト"]
 
-    theme_overrides: List[str] = []
-    for config in THEME_PRESETS.values():
-        slug = config["slug"]
-        theme_overrides.append(
-            f"""
-        :root[data-theme=\"{slug}\"] {{
-            --surface-bg: {config['surface_bg']};
-            --surface-panel: {config['surface_panel']};
-            --surface-card: {config['surface_card']};
-            --surface-outline: {config['surface_outline']};
-            --text-strong: {config['text_strong']};
-            --text-muted: {config['text_muted']};
-            --text-invert: {config['text_invert']};
-            --heading-color: {config['heading_color']};
-        }}
+    def theme_to_css_vars(config: Dict[str, str]) -> str:
+        lines = []
+        for key, value in config.items():
+            if key == "slug":
+                continue
+            css_var = key.replace("_", "-")
+            lines.append(f"            --{css_var}: {value};")
+        return "\n".join(lines)
 
-        [data-theme=\"{slug}\"] html,
-        [data-theme=\"{slug}\"] body,
-        [data-theme=\"{slug}\"] [data-testid=\"stAppViewContainer\"],
-        [data-theme=\"{slug}\"] [data-testid=\"block-container\"] {{
-            background-color: {config['surface_bg']} !important;
-            color: {config['text_strong']};
-        }}
-
-        [data-theme=\"{slug}\"] h1,
-        [data-theme=\"{slug}\"] h2,
-        [data-theme=\"{slug}\"] h3,
-        [data-theme=\"{slug}\"] h4 {{
-            color: {config['heading_color']};
-        }}
-
-        [data-theme=\"{slug}\"] .kpi-card {{
-            background: {config['kpi_card_bg']};
-            box-shadow: {config['kpi_card_shadow']};
-            border-color: {config['kpi_card_border']};
-            color: {config['text_invert']};
-        }}
-
-        [data-theme=\"{slug}\"] .kpi-icon {{
-            background: {config['kpi_icon_bg']};
-            color: {config['kpi_icon_color']};
-        }}
-
-        [data-theme=\"{slug}\"] .kpi-title {{
-            color: {config['kpi_title_color']};
-        }}
-
-        [data-theme=\"{slug}\"] .kpi-subtitle {{
-            color: {config['kpi_subtitle_color']};
-        }}
-
-        [data-theme=\"{slug}\"] .fiscal-pill {{
-            background: {config['fiscal_pill_bg']};
-            color: {config['fiscal_pill_color']};
-        }}
-
-        [data-theme=\"{slug}\"] .control-panel {{
-            background: {config['panel_bg']};
-            box-shadow: {config['panel_shadow']};
-            border: {config['panel_border']};
-        }}
-
-        [data-theme=\"{slug}\"] .quick-entry-card {{
-            background: {config['surface_card']};
-            border-color: {config['surface_outline']};
-            box-shadow: {config['panel_shadow']};
-        }}
-
-        [data-theme=\"{slug}\"] .quick-entry-card div[data-testid=\"stFormSubmitButton\"] button {{
-            background: {config['primary_button_bg']};
-            color: {config['primary_button_color']};
-            box-shadow: {config['primary_button_shadow']};
-        }}
-
-        [data-theme=\"{slug}\"] .quick-entry-card div[data-testid=\"stFormSubmitButton\"] button:hover {{
-            background: {config['primary_button_hover']};
-            box-shadow: {config['primary_button_hover_shadow']};
-        }}
-
-        [data-theme=\"{slug}\"] .control-panel .stButton > button {{
-            background: {config['primary_button_bg']};
-            color: {config['primary_button_color']};
-            box-shadow: {config['primary_button_shadow']};
-        }}
-
-        [data-theme=\"{slug}\"] .control-panel .stButton > button:hover {{
-            background: {config['primary_button_hover']};
-            box-shadow: {config['primary_button_hover_shadow']};
-        }}
-
-        [data-theme=\"{slug}\"] .control-panel div[data-baseweb=\"select\"],
-        [data-theme=\"{slug}\"] .control-panel div[data-baseweb=\"input\"],
-        [data-theme=\"{slug}\"] .control-panel div[data-baseweb=\"textarea\"],
-        [data-theme=\"{slug}\"] .control-panel [data-testid=\"stDateInput\"] div[data-baseweb=\"input\"],
-        [data-theme=\"{slug}\"] .control-panel [data-testid=\"stColorPicker\"] div[data-testid=\"stColorPickerValue\"] {{
-            background: {config['input_bg']};
-            border: {config['input_border']};
-            box-shadow: {config['input_shadow']};
-            color: {config['text_strong']};
-        }}
-
-        [data-theme=\"{slug}\"] .quick-actions .stButton > button {{
-            background: {config['quick_action_bg']} !important;
-            color: {config['quick_action_color']} !important;
-            border: {config['quick_action_border']} !important;
-            box-shadow: none !important;
-        }}
-
-        [data-theme=\"{slug}\"] .quick-actions .stButton > button:hover {{
-            box-shadow: {config['quick_action_hover_shadow']} !important;
-        }}
-
-        [data-theme=\"{slug}\"] [data-testid=\"stRadio\"] div[role=\"radiogroup\"] > label {{
-            background: {config['radio_bg']};
-            border: {config['radio_border']};
-            color: {config['radio_text']} !important;
-        }}
-
-        [data-theme=\"{slug}\"] [data-testid=\"stRadio\"] div[role=\"radiogroup\"] > label:hover {{
-            background: {config['radio_hover_bg']};
-            border: {config['radio_hover_border']};
-            color: {config['radio_hover_color']} !important;
-            box-shadow: {config['radio_hover_shadow']};
-        }}
-
-        [data-theme=\"{slug}\"] [data-testid=\"stRadio\"] div[role=\"radiogroup\"] > label:has(div[aria-checked=\"true\"]) {{
-            background: {config['radio_checked_bg']};
-            border: {config['radio_checked_border']};
-            color: {config['radio_checked_color']} !important;
-            box-shadow: {config['radio_checked_shadow']};
-        }}
-
-        [data-theme=\"{slug}\"] [data-testid=\"stDataFrame\"] table thead tr th {{
-            background: {config['table_header_bg']};
-            color: {config['table_header_color']} !important;
-        }}
-
-        [data-theme=\"{slug}\"] [data-testid=\"stDataFrame\"] table tbody tr:nth-child(odd) {{
-            background-color: {config['table_stripe_odd']};
-        }}
-
-        [data-theme=\"{slug}\"] [data-testid=\"stDataFrame\"] table tbody tr:nth-child(even) {{
-            background-color: {config['table_stripe_even']};
-        }}
-
-        [data-theme=\"{slug}\"] [data-testid=\"stDataFrame\"] table tbody tr:hover {{
-            background-color: {config['table_hover']} !important;
+    theme_overrides = [
+        f"""
+        :root[data-theme=\"{config['slug']}\"] {{
+{theme_to_css_vars(config)}
         }}
         """
-        )
+        for config in THEME_PRESETS.values()
+    ]
 
     overrides_css = "\n".join(theme_overrides)
+
+    default_theme_vars = theme_to_css_vars(default_theme)
+    brand_vars = "\n".join(
+        f"            --brand-{name}: {value};" for name, value in BRAND_COLORS.items()
+    )
 
     st.markdown(
         f"""
@@ -2558,25 +2430,24 @@ def apply_brand_theme() -> None:
         if (targetDoc?.body) {{
             targetDoc.body.setAttribute('data-theme', '{active_theme['slug']}');
         }}
+        const appRoot = targetDoc.querySelector('[data-testid=\"stAppViewContainer\"]');
+        if (appRoot) {{
+            appRoot.setAttribute('data-theme', '{active_theme['slug']}');
+        }}
+        const blockContainer = targetDoc.querySelector('[data-testid=\"block-container\"]');
+        if (blockContainer) {{
+            blockContainer.setAttribute('data-theme', '{active_theme['slug']}');
+        }}
+        const sidebarRoot = targetDoc.querySelector('[data-testid=\"stSidebar\"]');
+        if (sidebarRoot) {{
+            sidebarRoot.setAttribute('data-theme', '{active_theme['slug']}');
+        }}
         </script>
         <style>
         :root {{
-            --brand-navy: {BRAND_COLORS['navy']};
-            --brand-slate: {BRAND_COLORS['slate']};
-            --brand-mist: {BRAND_COLORS['mist']};
-            --brand-cloud: {BRAND_COLORS['cloud']};
-            --brand-gold: {BRAND_COLORS['gold']};
-            --brand-sky: {BRAND_COLORS['sky']};
-            --brand-crimson: {BRAND_COLORS['crimson']};
+{brand_vars}
             --accent-green: #2F9E5B;
-            --surface-bg: {default_theme['surface_bg']};
-            --surface-panel: {default_theme['surface_panel']};
-            --surface-card: {default_theme['surface_card']};
-            --surface-outline: {default_theme['surface_outline']};
-            --text-strong: {default_theme['text_strong']};
-            --text-muted: {default_theme['text_muted']};
-            --text-invert: {default_theme['text_invert']};
-            --heading-color: {default_theme['heading_color']};
+{default_theme_vars}
         }}
 
         html, body, [data-testid="stAppViewContainer"], [data-testid="block-container"] {{
