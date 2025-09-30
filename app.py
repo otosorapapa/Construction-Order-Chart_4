@@ -421,11 +421,7 @@ QUICK_TASK_TEMPLATES = {
 def get_active_theme_name() -> str:
     """Return the currently selected theme name with session state synchronisation."""
 
-    widget_theme = st.session_state.get("color_theme_select")
-    if widget_theme in THEME_PRESETS:
-        st.session_state["color_theme"] = widget_theme
-
-    theme_name = st.session_state.get("color_theme")
+    theme_name = st.session_state.get("color_theme", "ライト")
     if theme_name not in THEME_PRESETS:
         theme_name = "ライト"
         st.session_state["color_theme"] = theme_name
@@ -578,17 +574,26 @@ def rerun_app() -> None:
         st.experimental_rerun()
 
 
+def update_state_and_rerun(**updates) -> None:
+    """Apply session state updates and immediately trigger a rerun."""
+
+    if updates:
+        st.session_state.update(updates)
+    rerun_app()
+
+
 def switch_main_tab(tab_label: str) -> None:
     """Programmatically switch the main content tab."""
-    st.session_state["main_tabs"] = tab_label
-    rerun_app()
+    update_state_and_rerun(main_tab=tab_label, _main_tab_widget=tab_label)
 
 
 def trigger_new_project_modal() -> None:
     """Open the project creation modal and jump to the project list tab."""
-    st.session_state["show_project_modal"] = True
-    st.session_state["main_tabs"] = "案件一覧"
-    rerun_app()
+    update_state_and_rerun(
+        show_project_modal=True,
+        main_tab="案件一覧",
+        _main_tab_widget="案件一覧",
+    )
 
 
 def ensure_data_files() -> None:
@@ -814,6 +819,7 @@ def get_active_master_values(masters: Dict[str, List], key: str) -> List[str]:
     return [entry["name"] for entry in masters.get(key, []) if entry.get("active", True)]
 
 
+@st.cache_data(show_spinner="マスタを読み込んでいます…")
 def load_masters() -> Dict[str, List]:
     with open(MASTERS_JSON, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -823,8 +829,10 @@ def load_masters() -> Dict[str, List]:
 def save_masters(masters: Dict[str, List]) -> None:
     with open(MASTERS_JSON, "w", encoding="utf-8") as f:
         json.dump(ensure_master_structure(masters), f, ensure_ascii=False, indent=2)
+    load_masters.clear()
 
 
+@st.cache_data(show_spinner="案件データを読み込んでいます…")
 def load_projects() -> pd.DataFrame:
     df = pd.read_csv(PROJECT_CSV)
     for col in PROJECT_BASE_COLUMNS:
@@ -858,6 +866,7 @@ def save_projects(df: pd.DataFrame) -> None:
     out_df = out_df.reindex(columns=PROJECT_BASE_COLUMNS)
     out_df.sort_values(by="着工日", inplace=True, ignore_index=True)
     out_df.to_csv(PROJECT_CSV, index=False)
+    load_projects.clear()
 
 
 def load_scenarios() -> Dict[str, pd.DataFrame]:
@@ -958,6 +967,9 @@ def calculate_scenario_metrics(df: pd.DataFrame) -> Dict[str, Union[int, float, 
 
 def render_scenario_tab() -> None:
     st.subheader("シナリオ比較")
+    success_message = st.session_state.pop("scenario_update_success", None)
+    if success_message:
+        st.success(success_message)
     scenarios = get_scenario_state()
     if not scenarios:
         st.info("比較できるシナリオがありません。`data/scenarios.json` にシナリオを登録してください。")
@@ -981,6 +993,34 @@ def render_scenario_tab() -> None:
         global_end = global_end + pd.Timedelta(days=1)
 
     summary_records: List[Dict[str, Union[str, float, int]]] = []
+
+    def _update_scenario_entry(
+        scenario_name: str,
+        task_name: str,
+        progress: float,
+        actual_cost: float,
+        risk: str,
+    ) -> None:
+        scenario_frames = get_scenario_state()
+        target_frame = scenario_frames.get(scenario_name)
+        if target_frame is None or target_frame.empty:
+            update_state_and_rerun(scenario_update_success="対象タスクが見つかりませんでした。")
+            return
+        updated_df = target_frame.copy()
+        update_index = updated_df[updated_df["Task"].astype(str) == task_name].index
+        if update_index.empty:
+            update_state_and_rerun(scenario_update_success="対象タスクが見つかりませんでした。")
+            return
+        idx0 = update_index[0]
+        updated_df.loc[idx0, "Progress"] = progress
+        updated_df.loc[idx0, "CostActual"] = actual_cost
+        updated_df.loc[idx0, "RiskLevel"] = risk
+        scenario_frames[scenario_name] = updated_df
+        save_scenarios(scenario_frames)
+        update_state_and_rerun(
+            scenario_frames=scenario_frames,
+            scenario_update_success="シナリオを更新しました。",
+        )
     for name, df in scenarios.items():
         metrics = calculate_scenario_metrics(df)
         summary_records.append(
@@ -1085,19 +1125,18 @@ def render_scenario_tab() -> None:
                     key=f"{name}_risk",
                 )
 
-                if st.button("タスクを更新", key=f"{name}_update"):
-                    scenario_frames = get_scenario_state()
-                    updated_df = scenario_frames[name].copy()
-                    update_index = updated_df[updated_df["Task"].astype(str) == selected_task].index
-                    if not update_index.empty:
-                        idx0 = update_index[0]
-                        updated_df.loc[idx0, "Progress"] = new_progress
-                        updated_df.loc[idx0, "CostActual"] = new_actual_cost
-                        updated_df.loc[idx0, "RiskLevel"] = new_risk
-                        scenario_frames[name] = updated_df
-                        save_scenarios(scenario_frames)
-                        st.success("シナリオを更新しました。")
-                        rerun_app()
+                st.button(
+                    "タスクを更新",
+                    key=f"{name}_update",
+                    on_click=_update_scenario_entry,
+                    kwargs={
+                        "scenario_name": name,
+                        "task_name": selected_task,
+                        "progress": float(new_progress),
+                        "actual_cost": float(new_actual_cost),
+                        "risk": new_risk,
+                    },
+                )
 
             if not df.empty and {"Task", "Start", "Finish"}.issubset(df.columns):
                 chart_df = df.copy()
@@ -2352,26 +2391,56 @@ def render_control_panel(df: pd.DataFrame, masters: Dict[str, List[str]]) -> Fil
     st.markdown("<div class='control-panel'>", unsafe_allow_html=True)
     with st.container():
         st.markdown("#### 集計期間")
-        fiscal_year = st.selectbox(
+        if "fiscal_year" not in st.session_state:
+            st.session_state["fiscal_year"] = DEFAULT_FISCAL_YEAR
+        fiscal_year_value = st.session_state["fiscal_year"]
+        if fiscal_year_value not in FISCAL_YEAR_OPTIONS:
+            fiscal_year_value = DEFAULT_FISCAL_YEAR
+            st.session_state["fiscal_year"] = fiscal_year_value
+        if "_fiscal_year_widget" not in st.session_state:
+            st.session_state["_fiscal_year_widget"] = fiscal_year_value
+        elif st.session_state.get("_fiscal_year_widget") != fiscal_year_value:
+            st.session_state["_fiscal_year_widget"] = fiscal_year_value
+
+        def _on_fiscal_year_change() -> None:
+            new_year = st.session_state.get("_fiscal_year_widget", DEFAULT_FISCAL_YEAR)
+            update_state_and_rerun(fiscal_year=new_year)
+
+        st.selectbox(
             "事業年度",
             FISCAL_YEAR_OPTIONS,
-            index=FISCAL_YEAR_OPTIONS.index(DEFAULT_FISCAL_YEAR),
+            index=FISCAL_YEAR_OPTIONS.index(fiscal_year_value),
             help="対象年度を変更すると、各種グラフ・表の期間が自動調整されます。",
-            key="fiscal_year_select",
+            key="_fiscal_year_widget",
+            on_change=_on_fiscal_year_change,
         )
+        fiscal_year = st.session_state["fiscal_year"]
         start, end = get_fiscal_year_range(fiscal_year)
 
         st.markdown("#### 表示設定")
         theme_options = list(THEME_PRESETS.keys())
-        default_theme = get_active_theme_name()
-        color_theme = st.selectbox(
+        active_theme_name = get_active_theme_name()
+        if active_theme_name not in theme_options:
+            active_theme_name = theme_options[0]
+            st.session_state["color_theme"] = active_theme_name
+        if "_color_theme_widget" not in st.session_state:
+            st.session_state["_color_theme_widget"] = active_theme_name
+        elif st.session_state.get("_color_theme_widget") != active_theme_name:
+            st.session_state["_color_theme_widget"] = active_theme_name
+
+        def _on_color_theme_change() -> None:
+            selected_theme = st.session_state.get("_color_theme_widget", active_theme_name)
+            update_state_and_rerun(color_theme=selected_theme)
+
+        st.selectbox(
             "カラーモード",
             theme_options,
-            index=theme_options.index(default_theme),
+            index=theme_options.index(active_theme_name),
             help="アプリ全体の配色モードを切り替えます。",
-            key="color_theme_select",
+            key="_color_theme_widget",
+            on_change=_on_color_theme_change,
         )
-        st.session_state["color_theme"] = color_theme
+        color_theme = get_active_theme_name()
         active_theme_config = THEME_PRESETS[color_theme]
         theme_slug = active_theme_config["slug"]
         default_bar_color = get_schedule_bar_default_color(theme_slug)
@@ -2402,23 +2471,47 @@ def render_control_panel(df: pd.DataFrame, masters: Dict[str, List[str]]) -> Fil
         )
 
         st.markdown("#### データ入出力")
-        export_target = st.radio(
+        export_options = ["案件データ", "月次集計"]
+        format_options = ["CSV", "Excel"]
+        if "export_target" not in st.session_state:
+            st.session_state["export_target"] = export_options[0]
+        if "_export_target_widget" not in st.session_state:
+            st.session_state["_export_target_widget"] = st.session_state["export_target"]
+        elif st.session_state.get("_export_target_widget") != st.session_state["export_target"]:
+            st.session_state["_export_target_widget"] = st.session_state["export_target"]
+
+        if "export_format" not in st.session_state:
+            st.session_state["export_format"] = format_options[0]
+        if "_export_format_widget" not in st.session_state:
+            st.session_state["_export_format_widget"] = st.session_state["export_format"]
+        elif st.session_state.get("_export_format_widget") != st.session_state["export_format"]:
+            st.session_state["_export_format_widget"] = st.session_state["export_format"]
+
+        def _on_export_target_change() -> None:
+            new_target = st.session_state.get("_export_target_widget", export_options[0])
+            update_state_and_rerun(export_target=new_target)
+
+        def _on_export_format_change() -> None:
+            new_format = st.session_state.get("_export_format_widget", format_options[0])
+            update_state_and_rerun(export_format=new_format)
+
+        st.radio(
             "エクスポート対象",
-            ["案件データ", "月次集計"],
-            index=0,
+            export_options,
+            index=export_options.index(st.session_state["export_target"]),
             horizontal=False,
-            key="export_target_radio",
+            key="_export_target_widget",
             help="ダウンロードするデータセットを選択します。",
+            on_change=_on_export_target_change,
         )
-        export_format = st.selectbox(
+        st.selectbox(
             "出力形式",
-            ["CSV", "Excel"],
-            index=0,
-            key="export_format_select",
+            format_options,
+            index=format_options.index(st.session_state["export_format"]),
+            key="_export_format_widget",
             help="必要な形式でファイルを出力します。",
+            on_change=_on_export_format_change,
         )
-        st.session_state["export_target"] = export_target
-        st.session_state["export_format"] = export_format
         st.session_state["export_placeholder"] = st.empty()
 
         st.markdown("#### ショートカット")
@@ -3390,23 +3483,23 @@ def render_quick_actions(layout: str = "grid") -> None:
         cols = st.columns(len(actions))
         for idx, (col, action) in enumerate(zip(cols, actions)):
             with col:
-                if st.button(
+                st.button(
                     action["label"],
                     use_container_width=True,
                     key=f"qa_{idx}",
                     help=action["description"],
-                ):
-                    action["callback"]()
+                    on_click=action["callback"],
+                )
                 st.caption(action["description"])
     else:
         for idx, action in enumerate(actions):
-            if st.button(
+            st.button(
                 action["label"],
                 use_container_width=True,
                 key=f"qa_{idx}",
                 help=action["description"],
-            ):
-                action["callback"]()
+                on_click=action["callback"],
+            )
             st.caption(action["description"])
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown(
@@ -3566,15 +3659,16 @@ def render_quick_project_form(df: pd.DataFrame, masters: Dict[str, List[str]]) -
         st.error(f"工程の保存に失敗しました: {exc}")
         return
 
-    st.session_state["quick_add_success"] = f"{cleaned_name} を追加しました（ID: {new_id}）。"
-    st.session_state["quick_template_select"] = template_options[0]
-    st.session_state["quick_selected_template"] = None
-    st.session_state["quick_field_task_name"] = ""
-    st.session_state["quick_field_notes"] = ""
-    st.session_state["quick_field_dependency"] = dependency_options[0]
-    st.session_state["quick_field_start"] = finish_date
-    st.session_state["quick_field_duration"] = 10
-    rerun_app()
+    update_state_and_rerun(
+        quick_add_success=f"{cleaned_name} を追加しました（ID: {new_id}）。",
+        quick_template_select=template_options[0],
+        quick_selected_template=None,
+        quick_field_task_name="",
+        quick_field_notes="",
+        quick_field_dependency=dependency_options[0],
+        quick_field_start=finish_date,
+        quick_field_duration=10,
+    )
 
 
 def prepare_export(df: Optional[pd.DataFrame], file_format: str = "CSV"):
@@ -3628,22 +3722,26 @@ def import_projects(uploaded, mode: str) -> None:
 def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, masters: Dict[str, List[str]]) -> None:
     st.subheader("案件一覧")
     col_add, col_draft, col_hint1, col_hint2 = st.columns([1.2, 1, 2.2, 2.2])
-    if col_add.button(
+
+    def _open_project_modal() -> None:
+        update_state_and_rerun(show_project_modal=True)
+
+    col_add.button(
         "＋ 新規案件を追加",
         type="primary",
         use_container_width=True,
         help="案件登録フォームを開きます。",
-    ):
-        st.session_state["show_project_modal"] = True
+        on_click=_open_project_modal,
+    )
 
     draft_exists = bool(st.session_state.get("project_form_draft"))
-    if col_draft.button(
+    col_draft.button(
         "下書きを開く",
         use_container_width=True,
         disabled=not draft_exists,
         help="保存済みの下書きがある場合に再開できます。",
-    ) and draft_exists:
-        st.session_state["show_project_modal"] = True
+        on_click=_open_project_modal,
+    )
 
     col_hint1.markdown("<div class='quick-hint'>案件登録は専用フォームから行えます。</div>", unsafe_allow_html=True)
     col_hint2.markdown(
@@ -3780,8 +3878,7 @@ def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, master
                     st.toast("下書きを保存しました。", icon="📝")
 
                 if cancel_modal:
-                    st.session_state["show_project_modal"] = False
-                    rerun_app()
+                    update_state_and_rerun(show_project_modal=False)
 
                 if save_new:
                     errors: List[str] = []
@@ -3800,7 +3897,6 @@ def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, master
                             st.error(msg)
                     else:
                         st.session_state.pop("project_form_draft", None)
-                        st.session_state["show_project_modal"] = False
                         persist_record = {col: new_record.get(col, "") for col in PROJECT_BASE_COLUMNS}
                         persist_record["受注予定額"] = persist_record.get("受注予定額") or order_value
                         for numeric_col in PROJECT_NUMERIC_COLUMNS:
@@ -3811,7 +3907,7 @@ def render_projects_tab(full_df: pd.DataFrame, filtered_df: pd.DataFrame, master
                         persist_df = pd.concat([full_df, pd.DataFrame([persist_record])], ignore_index=True)
                         save_projects(persist_df)
                         st.success("新規案件を保存しました。案件一覧を更新します。")
-                        rerun_app()
+                        update_state_and_rerun(show_project_modal=False)
 
     display_df = enrich_projects(filtered_df) if not filtered_df.empty else filtered_df.copy()
     for col in PROJECT_DATE_COLUMNS:
@@ -4464,11 +4560,21 @@ def render_settings_tab(masters: Dict[str, List[str]]) -> None:
         controls = st.columns([1.2, 1, 3])
         modal_flag = f"{key}_show_modal"
         draft_key = f"{key}_draft"
-        if controls[0].button(f"＋ {label}を追加", key=f"{key}_add"):
-            st.session_state[modal_flag] = True
+        def _open_master_modal() -> None:
+            update_state_and_rerun(**{modal_flag: True})
+
+        controls[0].button(
+            f"＋ {label}を追加",
+            key=f"{key}_add",
+            on_click=_open_master_modal,
+        )
         draft_exists = bool(st.session_state.get(draft_key))
-        if controls[1].button("下書きを開く", key=f"{key}_open_draft", disabled=not draft_exists) and draft_exists:
-            st.session_state[modal_flag] = True
+        controls[1].button(
+            "下書きを開く",
+            key=f"{key}_open_draft",
+            disabled=not draft_exists,
+            on_click=_open_master_modal,
+        )
         controls[2].markdown(
             "<div class='quick-hint'>新規追加はフォームから行い、最後に設定保存ボタンで確定します。</div>",
             unsafe_allow_html=True,
@@ -4496,8 +4602,7 @@ def render_settings_tab(masters: Dict[str, List[str]]) -> None:
                         st.toast("下書きを保存しました。", icon="📝")
 
                     if cancel_modal:
-                        st.session_state[modal_flag] = False
-                        rerun_app()
+                        update_state_and_rerun(**{modal_flag: False})
 
                     if submit_new:
                         errors: List[str] = []
@@ -4513,9 +4618,8 @@ def render_settings_tab(masters: Dict[str, List[str]]) -> None:
                             entries.append({"name": cleaned, "active": active_value})
                             masters[key] = entries
                             st.session_state.pop(draft_key, None)
-                            st.session_state[modal_flag] = False
                             st.success(f"{label}を追加しました。設定保存で反映されます。")
-                            rerun_app()
+                            update_state_and_rerun(**{modal_flag: False})
 
         editor = st.data_editor(
             base_df,
@@ -4576,6 +4680,8 @@ def main() -> None:
     st.set_page_config(page_title="工事受注案件 予定表", layout="wide")
     apply_brand_theme()
     ensure_data_files()
+    if "show_project_modal" not in st.session_state:
+        st.session_state["show_project_modal"] = False
     masters = load_masters()
 
     try:
@@ -4584,7 +4690,7 @@ def main() -> None:
         st.error(f"データの読み込みに失敗しました: {exc}")
         return
 
-    header_year = st.session_state.get("fiscal_year_select", DEFAULT_FISCAL_YEAR)
+    header_year = st.session_state.get("fiscal_year", DEFAULT_FISCAL_YEAR)
     stored_range = st.session_state.get("period_range_state")
     if (
         isinstance(stored_range, tuple)
@@ -4629,15 +4735,27 @@ def main() -> None:
         )
 
     tab_labels = ["タイムライン", "案件一覧", "集計/分析", "シナリオ比較", "設定"]
-    if "main_tabs" not in st.session_state:
-        st.session_state["main_tabs"] = tab_labels[0]
-    selected_tab = st.radio(
+    if "main_tab" not in st.session_state:
+        st.session_state["main_tab"] = tab_labels[0]
+    if "_main_tab_widget" not in st.session_state:
+        st.session_state["_main_tab_widget"] = st.session_state["main_tab"]
+    elif st.session_state.get("_main_tab_widget") != st.session_state["main_tab"]:
+        st.session_state["_main_tab_widget"] = st.session_state["main_tab"]
+
+    def _handle_main_tab_change() -> None:
+        selected = st.session_state.get("_main_tab_widget", tab_labels[0])
+        update_state_and_rerun(main_tab=selected)
+
+    st.radio(
         "表示タブ",
         tab_labels,
         horizontal=True,
-        key="main_tabs",
+        key="_main_tab_widget",
+        index=tab_labels.index(st.session_state["main_tab"]),
         label_visibility="collapsed",
+        on_change=_handle_main_tab_change,
     )
+    selected_tab = st.session_state["main_tab"]
 
     st.divider()
 
